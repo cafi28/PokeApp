@@ -1,6 +1,6 @@
 # 🐱‍⚡️ PokeApp
 
-Aplicación móvil desarrollada en **Flutter** que simula un **inicio de sesión** y una **pantalla principal de evaluaciones**, adaptada al contexto de una **colección de cartas Pokémon**.  
+Aplicación móvil desarrollada en **Flutter** que simula un **inicio de sesión** y una pantalla adaptada al contexto de una **colección de cartas Pokémon**.  
 Proyecto académico para el ramo **Aplicaciones Móviles para IoT – INACAP (Primavera 2025)**.
 
 ---
@@ -88,25 +88,32 @@ lib/
 
 **Resultado final:** 💯 *Cumple todos los requerimientos y criterios de evaluación.*
 
+## 📸 Capturas de la aplicación
+
+### 🔐 Pantalla de Login  
+Validación de correo y contraseña, con estilo tipo INACAP.
+
+![Login Screen](assets/screenshots/login_screen.png)
+
 ---
 
-## 📸 Capturas sugeridas
+### ⚡ Pantalla de Bienvenida  
+Pikachu corriendo 🏃‍♂️⚡ antes de entrar a la colección.
 
-Puedes agregar capturas aquí:
-```
-assets/screenshots/
-```
+![Bienvenida con Pikachu](assets/screenshots/welcome_pikachu.png)
 
-Ejemplo:
-- 🟡 `login_screen.png`
-- 🟢 `welcome_pikachu.gif`
-- 🔴 `cartas_screen.png`
+---
+
+### 🗂️ Colección de Cartas Pokémon  
+Listado con búsqueda, filtros, estados derivados y fechas en español.
+
+![Pantalla principal](assets/screenshots/cartas_screen.png)
 
 ---
 
 ## 👩‍💻 Autora
 
-**Carolina Figueroa Aburto**  
+**Carolina Figueroa**  
 Estudiante de Ingeniería en Informática – INACAP  
 Primavera 2025  
 
