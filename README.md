@@ -91,7 +91,7 @@ lib/
 ## 📸 Capturas de la aplicación
 
 ### 🔐 Pantalla de Login  
-Validación de correo y contraseña, con estilo tipo INACAP.
+Validación de correo y contraseña.
 
 ![Login Screen](assets/screenshots/login_screen.png)
 
