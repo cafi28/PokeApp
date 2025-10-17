@@ -71,23 +71,6 @@ lib/
 
 ---
 
-## ✅ Cumplimiento de la rúbrica INACAP
-
-| Criterio | Estado |
-|-----------|---------|
-| Construcción visual – Login | ✅ Destacado |
-| Validaciones y mensajes | ✅ Destacado |
-| Navegación post-login | ✅ Destacado |
-| Render y layout del listado | ✅ Destacado |
-| Estados derivados | ✅ Destacado |
-| Búsqueda | ✅ Destacado |
-| Filtros rápidos | ✅ Destacado |
-| Creación con validaciones | ✅ Destacado |
-| Marcar como completada | ✅ Destacado |
-| Eliminación con Undo | ✅ Destacado |
-
-**Resultado final:** 💯 *Cumple todos los requerimientos y criterios de evaluación.*
-
 ## 📸 Capturas de la aplicación
 
 ### 🔐 Pantalla de Login  
