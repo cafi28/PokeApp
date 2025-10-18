@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "923146792029",
+    "project_id": "tareaaplicaciones-7b448",
+    "storage_bucket": "tareaaplicaciones-7b448.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:923146792029:android:5d4984c11f2f492f16b1b4",
+        "android_client_info": {
+          "package_name": "com.example.app_tareas"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2vhMe4x3A3uOJabRwYhZ4Dx8OwL2Z1ck"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:923146792029:android:2a22ea085cb4478116b1b4",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2vhMe4x3A3uOJabRwYhZ4Dx8OwL2Z1ck"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

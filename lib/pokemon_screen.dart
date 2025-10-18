@@ -1,5 +1,7 @@
+import 'dart:async'; // TimeoutException, Future
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'data/carta_service.dart';
 
 /// Modelo de carta Pokémon con campos adicionales
 class CartaPokemon {
@@ -13,18 +15,16 @@ class CartaPokemon {
   final DateTime? fechaObjetivo; // "Vencida"
 
   CartaPokemon({
-    // constructor
     required this.id,
     required this.nombre,
     required this.numero,
     required this.tengo,
     this.notas,
     this.fechaAgregada,
-    this.fechaObjetivo, // opcional
+    this.fechaObjetivo,
   });
 
   CartaPokemon copyWith({
-    // para copiar y modificar
     String? id,
     String? nombre,
     int? numero,
@@ -34,7 +34,6 @@ class CartaPokemon {
     DateTime? fechaObjetivo,
   }) {
     return CartaPokemon(
-      // retorna una nueva instancia
       id: id ?? this.id,
       nombre: nombre ?? this.nombre,
       numero: numero ?? this.numero,
@@ -46,89 +45,118 @@ class CartaPokemon {
   }
 }
 
-/// Filtros solicitados por el enunciado:
-/// - Todas / Pendientes / Completas
+/// Filtros: Todas / Pendientes / Completas
 enum CartaFiltro { todas, pendientes, completas }
 
-/// Orden por fecha objetivo (dueDate); fallback a fechaAgregada
+/// Orden por fecha objetivo (dueDate) o agregada
 enum SortOrder { asc, desc }
 
-/// Formato simple dd-mm-aaaa (sin dependencias)
-// 👉 Ahora con intl en español de Chile. Si quieres español genérico, usa 'es'.
+/// Fechas en español (Chile)
 String _fmt(DateTime d) {
   final formato = DateFormat('EEEE d \'de\' MMMM \'de\' y', 'es_CL');
   return formato.format(d);
 }
 
 class CartasPokemonScreen extends StatefulWidget {
-  // pantalla principal de cartas Pokémon
   const CartasPokemonScreen({super.key});
 
-  @override // crear estado que maneje la lógica
+  @override
   State<CartasPokemonScreen> createState() => _CartasPokemonScreenState();
 }
 
 class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
-  // estado que maneja la lógica
   final _busquedaCtrl = TextEditingController();
   CartaFiltro _filtro = CartaFiltro.todas;
   SortOrder _sortOrder = SortOrder.asc;
 
-  final List<CartaPokemon> _cartas = [
-    // Precargadas
+  // 🔹 Semillas para no ver vacío mientras sincroniza
+  final List<CartaPokemon> _seedCartas = [
     CartaPokemon(
-      id: '1',
+      id: 'seed-1',
       nombre: 'Pikachu',
       numero: 25,
       tengo: true,
       notas: 'Base Set',
-      fechaAgregada: DateTime.now().subtract(
-        const Duration(days: 3),
-      ), // hace 3 días que se agregó
+      fechaAgregada: DateTime.now().subtract(const Duration(days: 3)),
     ),
     CartaPokemon(
-      id: '2',
+      id: 'seed-2',
       nombre: 'Charmander',
       numero: 4,
       tengo: false,
       fechaAgregada: DateTime.now().subtract(const Duration(days: 2)),
-      fechaObjetivo: DateTime.now().add(
-        const Duration(days: 2),
-      ), // pendiente que aun no vence
+      fechaObjetivo: DateTime.now().add(const Duration(days: 2)),
     ),
     CartaPokemon(
-      id: '3',
+      id: 'seed-3',
       nombre: 'Squirtle',
       numero: 7,
       tengo: false,
       fechaAgregada: DateTime.now().subtract(const Duration(days: 4)),
-      fechaObjetivo: DateTime.now().subtract(
-        const Duration(days: 1),
-      ), // vencida hace 1 día
+      fechaObjetivo: DateTime.now().subtract(const Duration(days: 1)),
     ),
     CartaPokemon(
-      id: '4',
+      id: 'seed-4',
       nombre: 'Bulbasaur',
       numero: 1,
       tengo: true,
       fechaAgregada: DateTime.now().subtract(const Duration(days: 1)),
     ),
-    CartaPokemon(
-      id: '5',
-      nombre: 'Eevee',
-      numero: 133,
-      tengo: false,
-      // sin fechas agregada/objetivo
-    ),
+    CartaPokemon(id: 'seed-5', nombre: 'Eevee', numero: 133, tengo: false),
   ];
 
-  @override // liberar controlador
+  // Estado
+  List<CartaPokemon> _cartas = [];
+  bool _sincronizando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Muestra algo de inmediato y sincroniza en background
+    _cartas = List.of(_seedCartas);
+    _cargarCartas();
+  }
+
+  @override
   void dispose() {
     _busquedaCtrl.dispose();
     super.dispose();
   }
 
-  // Deriva si está vencida: no la tengo y la fechaObjetivo es anterior a hoy
+  Future<void> _cargarCartas() async {
+    setState(() => _sincronizando = true);
+    try {
+      final cartasBD = await CartaService.getCartas().timeout(
+        const Duration(seconds: 6),
+      );
+
+      // Si Firestore tiene datos, reemplaza las semillas
+      if (cartasBD.isNotEmpty) {
+        setState(() => _cartas = cartasBD);
+      } else {
+        // Si está vacío, mantenemos semillas (mejor UX para demo)
+        setState(() => _cartas = List.of(_seedCartas));
+      }
+    } on TimeoutException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sincronización lenta. Mostrando datos locales.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al cargar cartas: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _sincronizando = false);
+    }
+  }
+
+  // Deriva si está vencida: no la tengo y dueDate es anterior a hoy
   bool _estaVencida(CartaPokemon c) {
     if (c.tengo) return false;
     if (c.fechaObjetivo == null) return false;
@@ -143,7 +171,6 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
   }
 
   String _estado(CartaPokemon c) {
-    // Pendiente / Completada / Vencida
     if (c.tengo) return 'Completada';
     if (_estaVencida(c)) return 'Vencida';
     return 'Pendiente';
@@ -158,19 +185,19 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
         (c.notas ?? '').toLowerCase().contains(q);
   }
 
-  // Filtros: Todas / Pendientes / Completas
+  // Filtros
   bool _coincideFiltro(CartaPokemon c) {
     switch (_filtro) {
       case CartaFiltro.todas:
-        return true; // sin filtro
+        return true;
       case CartaFiltro.pendientes:
-        return !c.tengo; // incluye vencidas dentro de pendientes
+        return !c.tengo;
       case CartaFiltro.completas:
-        return c.tengo; // solo las que tengo
+        return c.tengo;
     }
   }
 
-  // Orden: por fechaObjetivo (dueDate) cuando exista; si no, por fechaAgregada; sin fecha -> al final, por nombre
+  // Orden: dueDate > fechaAgregada > nombre
   List<CartaPokemon> get _filtradasOrdenadas {
     final base = _cartas
         .where((c) => _coincideBusqueda(c) && _coincideFiltro(c))
@@ -184,17 +211,15 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
       final bd = b.fechaObjetivo;
 
       if (ad != null && bd != null) return _cmpDate(ad, bd);
-      if (ad != null && bd == null) return -1; // a primero (tiene dueDate)
-      if (ad == null && bd != null) return 1; // b primero
+      if (ad != null && bd == null) return -1;
+      if (ad == null && bd != null) return 1;
 
-      // Ambos sin fechaObjetivo: usar fechaAgregada si existe
       final aa = a.fechaAgregada;
       final ba = b.fechaAgregada;
       if (aa != null && ba != null) return _cmpDate(aa, ba);
       if (aa != null && ba == null) return -1;
       if (aa == null && ba != null) return 1;
 
-      // Sin fechas: por nombre
       return a.nombre.compareTo(b.nombre);
     });
 
@@ -202,21 +227,18 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
   }
 
   void _toggleTengo(CartaPokemon c) {
-    // marcar/desmarcar como "tengo"
     setState(() => c.tengo = !c.tengo);
   }
 
   void _deleteWithUndo(CartaPokemon c) {
-    // eliminar con opción a deshacer
     final idx = _cartas.indexWhere((x) => x.id == c.id);
     if (idx < 0) return;
 
-    final removed = _cartas.removeAt(idx); // eliminar
+    final removed = _cartas.removeAt(idx);
     setState(() {});
 
-    ScaffoldMessenger.of(context).clearSnackBars(); // limpiar mensajes previos
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
-      // mostrar SnackBar con opción a deshacer
       SnackBar(
         content: Text('Eliminada: ${removed.nombre}'),
         action: SnackBarAction(
@@ -231,46 +253,97 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
   }
 
   Future<void> _agregarCarta() async {
-    // agregar nueva carta (modal bottom sheet)
     final nombreCtrl = TextEditingController();
     final numeroCtrl = TextEditingController();
     final notasCtrl = TextEditingController();
     bool tengo = false;
     DateTime? fechaObjetivo;
 
-    await showModalBottomSheet(
-      // modal bottom sheet
+    final value = await showModalBottomSheet<CartaPokemon?>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) {
+      builder: (sheetCtx) {
+        bool sending = false;
+
+        void safeSnack(String msg) {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
+        }
+
         return Padding(
           padding: EdgeInsets.only(
             left: 16,
             right: 16,
             top: 16,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 16,
           ),
           child: StatefulBuilder(
             builder: (ctxModal, setModal) {
               Future<void> _pickDate() async {
-                // costo pero se pudo, cambiarle la fecha fue todo un reto.
                 final hoy = DateTime.now();
                 final inicio = DateTime(hoy.year, hoy.month, hoy.day);
                 final picked = await showDatePicker(
                   context: context,
                   initialDate: inicio,
-                  firstDate: inicio, // no permite pasado (regla RF)
+                  firstDate: inicio,
                   lastDate: DateTime(hoy.year + 5),
-                  locale: const Locale('es', 'CL'), //Español Chile porfin !!!
-                  useRootNavigator: true, // español en el date picker
+                  locale: const Locale('es', 'CL'),
+                  useRootNavigator: true,
                 );
-                if (picked != null) {
-                  setModal(() => fechaObjetivo = picked);
+                if (picked != null) setModal(() => fechaObjetivo = picked);
+              }
+
+              Future<void> _onSubmit() async {
+                final nombre = nombreCtrl.text.trim();
+                final numTxt = numeroCtrl.text.trim();
+                if (nombre.isEmpty) {
+                  safeSnack('El nombre es obligatorio');
+                  return;
+                }
+                if (numTxt.isEmpty) {
+                  safeSnack('El número es obligatorio');
+                  return;
+                }
+                final parsed = int.tryParse(numTxt);
+                if (parsed == null || parsed <= 0) {
+                  safeSnack('Número inválido');
+                  return;
+                }
+
+                setModal(() => sending = true);
+
+                final nueva = CartaPokemon(
+                  id: DateTime.now().microsecondsSinceEpoch.toString(),
+                  nombre: nombre,
+                  numero: parsed,
+                  tengo: tengo,
+                  notas: notasCtrl.text.trim().isEmpty
+                      ? null
+                      : notasCtrl.text.trim(),
+                  fechaAgregada: DateTime.now(),
+                  fechaObjetivo: fechaObjetivo,
+                );
+
+                try {
+                  await CartaService.addCarta(
+                    nueva,
+                  ).timeout(const Duration(seconds: 6));
+                } on TimeoutException {
+                  safeSnack(
+                    'La red está lenta. Guardaremos cuando haya conexión.',
+                  );
+                } catch (e) {
+                  safeSnack('Error guardando en la nube: $e');
+                } finally {
+                  if (mounted) {
+                    Navigator.of(context, rootNavigator: true).pop(nueva);
+                  }
                 }
               }
 
               return Column(
-                // contenido del modal
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -310,7 +383,6 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Tengo (checkbox)
                   Row(
                     children: [
                       Checkbox(
@@ -322,7 +394,6 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Fecha objetivo (opcional)
                   OutlinedButton.icon(
                     onPressed: _pickDate,
                     icon: const Icon(Icons.event),
@@ -335,50 +406,22 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
 
                   const SizedBox(height: 8),
 
-                  FilledButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text('Agregar'),
-                    onPressed: () {
-                      final nombre = nombreCtrl.text.trim();
-                      if (nombre.isEmpty) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                            content: Text('El nombre es obligatorio'),
-                          ),
-                        );
-                        return;
-                      }
-                      final numTxt = numeroCtrl.text.trim();
-                      if (numTxt.isEmpty) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                            content: Text('El número es obligatorio'),
-                          ),
-                        );
-                        return;
-                      }
-                      final parsed = int.tryParse(numTxt);
-                      if (parsed == null || parsed <= 0) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(content: Text('Número inválido')),
-                        );
-                        return;
-                      }
-
-                      final nueva = CartaPokemon(
-                        id: DateTime.now().microsecondsSinceEpoch.toString(),
-                        nombre: nombre,
-                        numero: parsed,
-                        tengo: tengo,
-                        notas: notasCtrl.text.trim().isEmpty
-                            ? null
-                            : notasCtrl.text.trim(),
-                        fechaAgregada: DateTime.now(), // para tu orden/visual
-                        fechaObjetivo: fechaObjetivo, // dueDate opcional
-                      );
-
-                      Navigator.pop(ctx, nueva);
-                    },
+                  SizedBox(
+                    height: 48,
+                    child: FilledButton.icon(
+                      icon: sending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.add),
+                      label: Text(sending ? 'Guardando...' : 'Agregar'),
+                      onPressed: sending ? null : _onSubmit,
+                    ),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -387,17 +430,17 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
           ),
         );
       },
-    ).then((value) {
-      if (value is CartaPokemon) {
-        setState(() => _cartas.add(value));
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Agregada: ${value.nombre}')));
-      }
-    });
+    );
+
+    if (value is CartaPokemon) {
+      setState(() => _cartas.add(value));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Agregada: ${value.nombre}')));
+    }
   }
 
-  @override // construir la interfaz de usuario
+  @override
   Widget build(BuildContext context) {
     final lista = _filtradasOrdenadas;
 
@@ -407,7 +450,6 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
         centerTitle: true,
         backgroundColor: Colors.amber.shade600,
         actions: [
-          // Alternar orden (asc/desc) por fechaObjetivo (fallback fechaAgregada)
           IconButton(
             tooltip: _sortOrder == SortOrder.asc
                 ? 'Orden por fecha: Ascendente'
@@ -424,6 +466,13 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
             ),
           ),
         ],
+        // 🔹 Barrita de sincronización
+        bottom: _sincronizando
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(3),
+                child: LinearProgressIndicator(minHeight: 3),
+              )
+            : null,
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _agregarCarta,
@@ -433,149 +482,154 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
       body: Container(
         color: Colors.amber.shade100,
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 520),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Buscador
-                    TextField(
-                      controller: _busquedaCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Buscar carta (nombre, número o notas)',
-                        prefixIcon: Icon(Icons.search),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(),
+          child: RefreshIndicator(
+            onRefresh: _cargarCartas, // pull-to-refresh
+            child: Center(
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Buscador
+                      TextField(
+                        controller: _busquedaCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Buscar carta (nombre, número o notas)',
+                          prefixIcon: Icon(Icons.search),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => setState(() {}),
                       ),
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 12),
 
-                    // Filtros renombrados: Todas / Pendientes / Completas
-                    SegmentedButton<CartaFiltro>(
-                      segments: const [
-                        ButtonSegment(
-                          value: CartaFiltro.todas,
-                          label: Text('Todas'),
-                        ),
-                        ButtonSegment(
-                          value: CartaFiltro.pendientes,
-                          label: Text('Pendientes'),
-                        ),
-                        ButtonSegment(
-                          value: CartaFiltro.completas,
-                          label: Text('Completas'),
-                        ),
-                      ],
-                      selected: <CartaFiltro>{_filtro},
-                      onSelectionChanged: (sel) =>
-                          setState(() => _filtro = sel.first),
-                    ),
-                    const SizedBox(height: 16),
+                      // Filtros: Todas / Pendientes / Completas
+                      SegmentedButton<CartaFiltro>(
+                        segments: const [
+                          ButtonSegment(
+                            value: CartaFiltro.todas,
+                            label: Text('Todas'),
+                          ),
+                          ButtonSegment(
+                            value: CartaFiltro.pendientes,
+                            label: Text('Pendientes'),
+                          ),
+                          ButtonSegment(
+                            value: CartaFiltro.completas,
+                            label: Text('Completas'),
+                          ),
+                        ],
+                        selected: <CartaFiltro>{_filtro},
+                        onSelectionChanged: (sel) =>
+                            setState(() => _filtro = sel.first),
+                      ),
+                      const SizedBox(height: 16),
 
-                    // Lista
-                    if (lista.isEmpty)
-                      const _EmptyState()
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: lista.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final c = lista[index];
-                          final estado = _estado(c);
-                          final esVencida = estado == 'Vencida';
+                      // Lista
+                      if (lista.isEmpty)
+                        const _EmptyState()
+                      else
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: lista.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final c = lista[index];
+                            final estado = _estado(c);
+                            final esVencida = estado == 'Vencida';
 
-                          return Dismissible(
-                            key: ValueKey(c.id),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
+                            return Dismissible(
+                              key: ValueKey(c.id),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                color: Colors.red.shade300,
+                                child: const Icon(
+                                  Icons.delete,
+                                  color: Colors.white,
+                                ),
                               ),
-                              color: Colors.red.shade300,
-                              child: const Icon(
-                                Icons.delete,
+                              onDismissed: (_) => _deleteWithUndo(c),
+                              child: Card(
+                                elevation: 1,
                                 color: Colors.white,
-                              ),
-                            ),
-                            onDismissed: (_) => _deleteWithUndo(c),
-                            child: Card(
-                              elevation: 1,
-                              color: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ListTile(
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                leading: Checkbox(
-                                  value: c.tengo,
-                                  onChanged: (_) => _toggleTengo(c),
-                                ),
-                                title: Text(
-                                  '${c.nombre} (#${c.numero})',
-                                  // Estilo "completada" (tachado) si la tengo
-                                  style: c.tengo
-                                      ? const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          decoration:
-                                              TextDecoration.lineThrough,
-                                        )
-                                      : const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if ((c.notas ?? '').trim().isNotEmpty)
-                                      Text(c.notas!.trim()),
-                                    if (c.fechaAgregada != null)
-                                      Text(
-                                        'Agregada: ${_fmt(c.fechaAgregada!)}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    if (c.fechaObjetivo != null)
-                                      Text(
-                                        'Fecha objetivo: ${_fmt(c.fechaObjetivo!)}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    Text(
-                                      estado, // Pendiente / Completada / Vencida
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: esVencida
-                                                ? Colors.red.shade700
-                                                : Colors.black54,
-                                            fontWeight: esVencida
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
+                                child: ListTile(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  leading: Checkbox(
+                                    value: c.tengo,
+                                    onChanged: (_) => _toggleTengo(c),
+                                  ),
+                                  title: Text(
+                                    '${c.nombre} (#${c.numero})',
+                                    style: c.tengo
+                                        ? const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            decoration:
+                                                TextDecoration.lineThrough,
+                                          )
+                                        : const TextStyle(
+                                            fontWeight: FontWeight.w600,
                                           ),
-                                    ),
-                                  ],
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if ((c.notas ?? '').trim().isNotEmpty)
+                                        Text(c.notas!.trim()),
+                                      if (c.fechaAgregada != null)
+                                        Text(
+                                          'Agregada: ${_fmt(c.fechaAgregada!)}',
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                      if (c.fechaObjetivo != null)
+                                        Text(
+                                          'Fecha objetivo: ${_fmt(c.fechaObjetivo!)}',
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                      Text(
+                                        estado, // Pendiente / Completada / Vencida
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: esVencida
+                                                  ? Colors.red.shade700
+                                                  : Colors.black54,
+                                              fontWeight: esVencida
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                  onTap: () => _toggleTengo(c),
                                 ),
-                                onTap: () => _toggleTengo(c),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    const SizedBox(height: 12),
-                  ],
+                            );
+                          },
+                        ),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -587,11 +641,9 @@ class _CartasPokemonScreenState extends State<CartasPokemonScreen> {
 }
 
 class _EmptyState extends StatelessWidget {
-  // estado vacío
-  // widget para mostrar cuando la lista está vacía
   const _EmptyState();
 
-  @override // construir la interfaz de usuario
+  @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 0,
